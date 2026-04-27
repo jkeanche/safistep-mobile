@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- res/values/strings.xml -->
+<resources>
+    <string name="app_name">SafiStep</string>
+    <string name="accessibility_service_label">SafiStep Payment Guardian</string>
+    <string name="accessibility_service_description">SafiStep monitors STK payment prompts to detect and block payments to flagged betting platforms. No financial data is stored or transmitted.</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_1_title">Protect Your Money</string>
+    <string name="onboarding_1_desc">SafiStep watches over every M-Pesa STK payment and alerts you before money reaches a betting platform.</string>
+    <string name="onboarding_2_title">Smart Detection</string>
+    <string name="onboarding_2_desc">Our live blacklist of Kenyan betting platforms updates automatically. SafiStep catches new platforms as they are added.</string>
+    <string name="onboarding_3_title">You Stay in Control</string>
+    <string name="onboarding_3_desc">When a suspicious payment is detected, you choose — block it or proceed. No payment is ever stopped without your awareness.</string>
+    <string name="overlay_title">Betting Platform Detected!</string>
+    <string name="overlay_subtitle">This payment appears to be going to a flagged betting platform.</string>
+    <string name="overlay_block">Block Payment</string>
+    <string name="overlay_proceed">Proceed Anyway</string>
+</resources>
