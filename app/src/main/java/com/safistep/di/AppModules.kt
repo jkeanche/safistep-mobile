@@ -50,21 +50,25 @@ object NetworkModule {
     }
 
     @Provides @Singleton
-    fun provideOkHttp(authInterceptor: Interceptor): OkHttpClient {
-        return OkHttpClient.Builder()
-            .addInterceptor(authInterceptor)
-            .apply {
-                if (BuildConfig.DEBUG) {
-                    addInterceptor(HttpLoggingInterceptor().apply {
-                        level = HttpLoggingInterceptor.Level.BODY
-                    })
-                }
+   fun provideOkHttp(authInterceptor: Interceptor): OkHttpClient {
+    return OkHttpClient.Builder()
+        .addInterceptor(authInterceptor)
+        .addInterceptor(HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BODY  // force this even in release
+        })
+        .addInterceptor { chain ->
+            try {
+                chain.proceed(chain.request())
+            } catch (e: Exception) {
+                android.util.Log.e("OkHttp", "Request failed: ${e::class.java.name}: ${e.message}")
+                throw e
             }
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .build()
-    }
+        }
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+   }
 
     @Provides @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit =

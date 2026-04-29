@@ -55,14 +55,28 @@ class PhoneEntryViewModel @Inject constructor(
     }
 
     fun requestOtp(purpose: String = "registration") {
-        if (!validatePhone()) return
+        android.util.Log.d("AuthVM", "requestOtp called with phone: $phone, purpose: $purpose")
+        if (!validatePhone()) {
+            android.util.Log.d("AuthVM", "Phone validation failed")
+            return
+        }
         viewModelScope.launch {
             isLoading = true
             val normalized = normalizePhone(phone)
+            android.util.Log.d("AuthVM", "Normalized phone: $normalized")
             when (val result = authRepo.requestOtp(normalized, purpose)) {
-                is ApiResult.Success -> _event.emit(PhoneEvent.OtpSent(normalized))
-                is ApiResult.Error   -> phoneError = result.message
-                is ApiResult.NetworkError -> phoneError = "No internet connection"
+                is ApiResult.Success -> {
+                    android.util.Log.d("AuthVM", "OTP request successful")
+                    _event.emit(PhoneEvent.OtpSent(normalized))
+                }
+                is ApiResult.Error   -> {
+                    android.util.Log.e("AuthVM", "OTP request error: ${result.message}")
+                    phoneError = result.message
+                }
+                is ApiResult.NetworkError -> {
+                    android.util.Log.e("AuthVM", "OTP request network error")
+                    phoneError = "No internet connection"
+                }
             }
             isLoading = false
         }
@@ -220,8 +234,16 @@ class OtpViewModel @Inject constructor(
     var resendCountdown by mutableStateOf(60)
     var canResend by mutableStateOf(false)
 
+    var phone by mutableStateOf("")
+
     private val _event = MutableSharedFlow<OtpEvent>()
     val event = _event.asSharedFlow()
+
+
+    fun initWithPhone(phone: String) {
+    this.phone = phone
+    startCountdown()
+}
 
     fun startCountdown() {
         viewModelScope.launch {
@@ -239,7 +261,7 @@ class OtpViewModel @Inject constructor(
         otp = value.filter { it.isDigit() }.take(6)
         hasError = false
         errorMessage = null
-        if (otp.length == 6) verify("")  // auto-verify on complete entry
+        if (otp.length == 6) verify(this.phone)
     }
 
     fun verify(phone: String) {
@@ -291,7 +313,7 @@ fun OtpScreen(
     viewModel: OtpViewModel = hiltViewModel()
 ) {
     LaunchedEffect(Unit) {
-        viewModel.startCountdown()
+        viewModel.initWithPhone(phone)
         viewModel.event.collect { if (it is OtpEvent.Verified) onVerified() }
     }
 

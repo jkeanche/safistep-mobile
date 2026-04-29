@@ -22,9 +22,9 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
-        buildConfigField("String", "BASE_URL", "\"https://safistep.codejar.co.ke/api/v1/\"")
+        buildConfigField("String", "BASE_URL", "\"https://safistep.codejar.co.ke/\"")
         buildConfigField("String", "APP_VERSION", "\"1.0\"")
-    }
+    }                               
 
     buildTypes {
         release {
