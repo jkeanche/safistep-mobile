@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -75,19 +76,11 @@ class SafiStepPreferences @Inject constructor(
         }
     }
 
-    suspend fun getTempToken(): String? = ds.data.map { it[KEY_TEMP_TOKEN] }.catch { emit(null) }
-        .let { flow ->
-            var result: String? = null
-            flow.collect { result = it }
-            result
-        }
+    suspend fun getTempToken(): String? =
+        ds.data.catch { emit(emptyPreferences()) }.first()[KEY_TEMP_TOKEN]
 
-    suspend fun getTempPhone(): String? = ds.data.map { it[KEY_TEMP_PHONE] }.catch { emit(null) }
-        .let { flow ->
-            var result: String? = null
-            flow.collect { result = it }
-            result
-        }
+    suspend fun getTempPhone(): String? =
+        ds.data.catch { emit(emptyPreferences()) }.first()[KEY_TEMP_PHONE]
 
     suspend fun clearTempSession() {
         ds.edit { prefs ->
@@ -120,18 +113,9 @@ class SafiStepPreferences @Inject constructor(
     }
 
     // Synchronous reads for use in non-coroutine contexts (services)
-    suspend fun getTokenSync(): String? = ds.data.map { it[KEY_TOKEN] }.catch { emit(null) }
-        .let { flow ->
-            var result: String? = null
-            flow.collect { result = it }
-            result
-        }
+    suspend fun getTokenSync(): String? =
+        ds.data.catch { emit(emptyPreferences()) }.first()[KEY_TOKEN]
 
-    suspend fun getSubStatusSync(): String = ds.data.map { it[KEY_SUB_STATUS] ?: "inactive" }
-        .catch { emit("inactive") }
-        .let { flow ->
-            var result = "inactive"
-            flow.collect { result = it }
-            result
-        }
+    suspend fun getSubStatusSync(): String =
+        ds.data.catch { emit(emptyPreferences()) }.first()[KEY_SUB_STATUS] ?: "inactive"
 }

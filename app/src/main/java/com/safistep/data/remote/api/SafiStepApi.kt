@@ -8,42 +8,42 @@ interface SafiStepApi {
 
     // ── Auth ─────────────────────────────────────────────────
 
-    @POST("auth/request-otp")
+    @POST("api/v1/auth/request-otp")
     suspend fun requestOtp(@Body body: RequestOtpRequest): Response<MessageResponse>
 
-    @POST("auth/verify-otp")
+    @POST("api/v1/auth/verify-otp")
     suspend fun verifyOtp(@Body body: VerifyOtpRequest): Response<VerifyOtpResponse>
 
-    @POST("auth/set-password")
+    @POST("api/v1/auth/set-password")
     suspend fun setPassword(@Body body: SetPasswordRequest): Response<AuthResponse>
 
-    @POST("auth/login")
+    @POST("api/v1/auth/login")
     suspend fun login(@Body body: LoginRequest): Response<AuthResponse>
 
-    @POST("auth/logout")
+    @POST("api/v1/auth/logout")
     suspend fun logout(): Response<MessageResponse>
 
     // ── Blacklist ────────────────────────────────────────────
 
-    @GET("blacklist/version")
+    @GET("api/v1/blacklist/version")
     suspend fun getBlacklistVersion(): Response<BlacklistVersionResponse>
 
-    @GET("blacklist")
+    @GET("api/v1/blacklist")
     suspend fun getBlacklist(): Response<BlacklistResponse>
 
     // ── Subscriptions ────────────────────────────────────────
 
-    @GET("subscriptions/status")
+    @GET("api/v1/subscriptions/status")
     suspend fun getSubscriptionStatus(): Response<SubscriptionStatusResponse>
 
-    @POST("subscriptions/initiate")
+    @POST("api/v1/subscriptions/initiate")
     suspend fun initiateSubscription(): Response<InitiateSubscriptionResponse>
 
     // ── Reports ──────────────────────────────────────────────
 
-    @POST("reports")
+    @POST("api/v1/reports")
     suspend fun submitReport(@Body body: BlockedReportRequest): Response<MessageResponse>
 
-    @GET("reports/me")
+    @GET("api/v1/reports/me")
     suspend fun getMyReports(@Query("page") page: Int = 1): Response<PaginatedReports>
 }

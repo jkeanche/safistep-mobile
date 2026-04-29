@@ -3,8 +3,10 @@ package com.safistep.ui.components
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.*
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -14,6 +16,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.draw.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -192,14 +196,14 @@ fun SafiTextField(
             isError  = error != null,
             maxLines = maxLines,
             colors   = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor    = SafiColors.Primary,
-                unfocusedBorderColor  = SafiColors.CardBorder,
-                errorBorderColor      = SafiColors.Danger,
-                focusedContainerColor = SafiColors.SurfaceVariant,
+                focusedBorderColor      = SafiColors.Primary,
+                unfocusedBorderColor    = SafiColors.CardBorder,
+                errorBorderColor        = SafiColors.Danger,
+                focusedContainerColor   = SafiColors.SurfaceVariant,
                 unfocusedContainerColor = SafiColors.SurfaceVariant,
-                cursorColor           = SafiColors.Primary,
-                focusedTextColor      = SafiColors.OnBackground,
-                unfocusedTextColor    = SafiColors.OnSurface,
+                cursorColor             = SafiColors.Primary,
+                focusedTextColor        = SafiColors.OnBackground,
+                unfocusedTextColor      = SafiColors.OnSurface,
             ),
             textStyle = MaterialTheme.typography.bodyLarge
         )
@@ -221,59 +225,95 @@ fun OtpInputRow(
     length: Int = 6,
     hasError: Boolean = false
 ) {
-    val focusRequesters = remember { List(length) { androidx.compose.ui.focus.FocusRequester() } }
+    val focusRequester = remember { FocusRequester() }
 
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        repeat(length) { index ->
-            val char  = otp.getOrNull(index)
-            val isFocused = otp.length == index
+    // Open keyboard immediately when screen appears
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .aspectRatio(1f)
-                    .background(
-                        color = SafiColors.SurfaceVariant,
-                        shape = RoundedCornerShape(12.dp)
-                    )
-                    .border(
-                        width = 1.5.dp,
-                        color = when {
-                            hasError  -> SafiColors.Danger
-                            isFocused -> SafiColors.Primary
-                            char != null -> SafiColors.Primary.copy(alpha = 0.4f)
-                            else      -> SafiColors.CardBorder
-                        },
-                        shape = RoundedCornerShape(12.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                if (char != null) {
-                    Text(
-                        text  = char.toString(),
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            color      = SafiColors.Primary,
-                            fontWeight = FontWeight.Bold
+    Box(contentAlignment = Alignment.Center) {
+
+        // Hidden BasicTextField — the only thing that actually receives keyboard input
+        BasicTextField(
+            value         = otp,
+            onValueChange = { raw ->
+                val filtered = raw.filter { it.isDigit() }.take(length)
+                onOtpChange(filtered)
+            },
+            modifier      = Modifier
+                .focusRequester(focusRequester)
+                .size(1.dp)
+                .alpha(0.01f),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.NumberPassword,
+                imeAction    = ImeAction.Done
+            ),
+            keyboardActions = KeyboardActions(onDone = {}),
+            singleLine      = true
+        )
+
+        // Visual digit boxes
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment     = Alignment.CenterVertically,
+            modifier              = Modifier.clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication        = null
+            ) { focusRequester.requestFocus() }
+        ) {
+            repeat(length) { index ->
+                val char      = otp.getOrNull(index)
+                val isFocused = otp.length == index
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .aspectRatio(1f)
+                        .background(
+                            color = SafiColors.SurfaceVariant,
+                            shape = RoundedCornerShape(12.dp)
                         )
-                    )
-                }
-                if (isFocused) {
-                    // Blinking cursor
-                    val alpha by rememberInfiniteTransition(label = "cursor").animateFloat(
-                        initialValue = 1f, targetValue = 0f,
-                        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
-                        label = "cursor_alpha"
-                    )
-                    Box(
-                        modifier = Modifier
-                            .width(2.dp)
-                            .height(24.dp)
-                            .alpha(alpha)
-                            .background(SafiColors.Primary)
-                    )
+                        .border(
+                            width = 1.5.dp,
+                            color = when {
+                                hasError     -> SafiColors.Danger
+                                isFocused    -> SafiColors.Primary
+                                char != null -> SafiColors.Primary.copy(alpha = 0.4f)
+                                else         -> SafiColors.CardBorder
+                            },
+                            shape = RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (char != null) {
+                        Text(
+                            text  = char.toString(),
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                color      = SafiColors.Primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                    // Blinking cursor at current position
+                    if (isFocused) {
+                        val cursorAlpha by rememberInfiniteTransition(label = "cursor")
+                            .animateFloat(
+                                initialValue  = 1f,
+                                targetValue   = 0f,
+                                animationSpec = infiniteRepeatable(
+                                    tween(600), RepeatMode.Reverse
+                                ),
+                                label = "cursor_alpha"
+                            )
+                        Box(
+                            modifier = Modifier
+                                .width(2.dp)
+                                .height(24.dp)
+                                .alpha(cursorAlpha)
+                                .background(SafiColors.Primary)
+                        )
+                    }
                 }
             }
         }
@@ -375,7 +415,7 @@ fun ShieldStatusCard(
                     isActive      -> "Monitoring M-Pesa STK payments"
                     else          -> "Enable accessibility service to protect"
                 },
-                style   = MaterialTheme.typography.bodySmall.copy(color = SafiColors.OnSurfaceVar),
+                style     = MaterialTheme.typography.bodySmall.copy(color = SafiColors.OnSurfaceVar),
                 textAlign = TextAlign.Center,
                 modifier  = Modifier.padding(start = 8.dp, top = 4.dp, end = 8.dp)
             )
@@ -453,7 +493,9 @@ fun SafiTopBar(
         Text(
             text     = title,
             style    = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.weight(1f).padding(start = if (onBack != null) 4.dp else 8.dp)
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = if (onBack != null) 4.dp else 8.dp)
         )
         actions()
     }
@@ -467,14 +509,22 @@ fun SectionHeader(
     onAction: () -> Unit = {}
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment     = Alignment.CenterVertically
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
+        Text(
+            title,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+        )
         if (actionText != null) {
             TextButton(onClick = onAction) {
-                Text(actionText, style = MaterialTheme.typography.labelMedium.copy(color = SafiColors.Primary))
+                Text(
+                    actionText,
+                    style = MaterialTheme.typography.labelMedium.copy(color = SafiColors.Primary)
+                )
             }
         }
     }
@@ -489,7 +539,7 @@ fun EmptyState(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier          = modifier.padding(32.dp),
+        modifier            = modifier.padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
@@ -505,13 +555,13 @@ fun EmptyState(
         Spacer(Modifier.height(6.dp))
         Text(
             description,
-            style = MaterialTheme.typography.bodySmall.copy(color = SafiColors.OnSurfaceVar),
+            style     = MaterialTheme.typography.bodySmall.copy(color = SafiColors.OnSurfaceVar),
             textAlign = TextAlign.Center
         )
     }
 }
 
-// ── Loading Overlay ────────────────────────────────────────────
+// ── Loading Overlay ───────────────────────────────────────────
 @Composable
 fun FullScreenLoading() {
     Box(
@@ -523,7 +573,10 @@ fun FullScreenLoading() {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             CircularProgressIndicator(color = SafiColors.Primary, strokeWidth = 3.dp)
             Spacer(Modifier.height(16.dp))
-            Text("Loading…", style = MaterialTheme.typography.bodySmall.copy(color = SafiColors.OnSurfaceVar))
+            Text(
+                "Loading…",
+                style = MaterialTheme.typography.bodySmall.copy(color = SafiColors.OnSurfaceVar)
+            )
         }
     }
 }
@@ -550,7 +603,7 @@ fun SafiScaffold(
     )
 }
 
-// ── Info chip/badge ────────────────────────────────────────────
+// ── Info chip/badge ───────────────────────────────────────────
 @Composable
 fun SafiChip(text: String, color: Color = SafiColors.Primary) {
     Box(
@@ -568,7 +621,7 @@ fun SafiChip(text: String, color: Color = SafiColors.Primary) {
     }
 }
 
-// ── Divider ────────────────────────────────────────────────────
+// ── Divider ───────────────────────────────────────────────────
 @Composable
 fun SafiDivider(modifier: Modifier = Modifier) {
     HorizontalDivider(

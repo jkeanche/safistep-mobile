@@ -1,6 +1,7 @@
 package com.safistep.di
 
 import android.content.Context
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.room.Room
 import com.safistep.BuildConfig
 import com.safistep.data.local.SafiStepPreferences
@@ -8,6 +9,7 @@ import com.safistep.data.local.dao.BlockHistoryDao
 import com.safistep.data.local.dao.PlatformDao
 import com.safistep.data.local.dao.SyncMetaDao
 import com.safistep.data.local.db.SafiStepDatabase
+import com.safistep.data.local.dataStore
 import com.safistep.data.remote.api.SafiStepApi
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -37,8 +39,15 @@ object NetworkModule {
         .build()
 
     @Provides @Singleton
-    fun provideAuthInterceptor(prefs: SafiStepPreferences): Interceptor = Interceptor { chain ->
-        val token = runBlocking { prefs.getTokenSync() }
+    fun provideAuthInterceptor(@ApplicationContext context: Context): Interceptor = Interceptor { chain ->
+        // Read token directly from DataStore preferences — uses .first() which completes immediately
+        val token = runBlocking {
+            try {
+                context.dataStore.data.first()[stringPreferencesKey("auth_token")]
+            } catch (e: Exception) {
+                null
+            }
+        }
         val request = chain.request().newBuilder().apply {
             header("Accept", "application/json")
             header("X-App-Version", BuildConfig.APP_VERSION)
@@ -50,25 +59,25 @@ object NetworkModule {
     }
 
     @Provides @Singleton
-   fun provideOkHttp(authInterceptor: Interceptor): OkHttpClient {
-    return OkHttpClient.Builder()
-        .addInterceptor(authInterceptor)
-        .addInterceptor(HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY  // force this even in release
-        })
-        .addInterceptor { chain ->
-            try {
-                chain.proceed(chain.request())
-            } catch (e: Exception) {
-                android.util.Log.e("OkHttp", "Request failed: ${e::class.java.name}: ${e.message}")
-                throw e
+    fun provideOkHttp(authInterceptor: Interceptor): OkHttpClient {
+        return OkHttpClient.Builder()
+            .addInterceptor(authInterceptor)
+            .addInterceptor(HttpLoggingInterceptor().apply {
+                level = HttpLoggingInterceptor.Level.BODY
+            })
+            .addInterceptor { chain ->
+                try {
+                    chain.proceed(chain.request())
+                } catch (e: Exception) {
+                    android.util.Log.e("OkHttp", "Request failed: ${e::class.java.name}: ${e.message}")
+                    throw e
+                }
             }
-        }
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
-   }
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
 
     @Provides @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit =
