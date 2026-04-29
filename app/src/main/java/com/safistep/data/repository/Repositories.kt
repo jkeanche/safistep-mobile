@@ -21,12 +21,8 @@ class AuthRepository @Inject constructor(
     private val api: SafiStepApi,
     private val prefs: SafiStepPreferences
 ) {
-    suspend fun requestOtp(phone: String, purpose: String = "registration"): ApiResult<MessageResponse> {
-        android.util.Log.d("AuthRepo", "Requesting OTP for phone: $phone, purpose: $purpose")
-        val result = safeApiCall { api.requestOtp(RequestOtpRequest(phone, purpose)) }
-        android.util.Log.d("AuthRepo", "OTP request result: $result")
-        return result
-    }
+    suspend fun requestOtp(phone: String, purpose: String = "registration"): ApiResult<MessageResponse> =
+        safeApiCall { api.requestOtp(RequestOtpRequest(phone, purpose)) }
 
     suspend fun verifyOtp(phone: String, code: String): ApiResult<VerifyOtpResponse> =
         safeApiCall { api.verifyOtp(VerifyOtpRequest(phone, code)) }
@@ -36,8 +32,13 @@ class AuthRepository @Inject constructor(
             api.setPassword(SetPasswordRequest(tempToken, name, password, password))
         }
         if (result is ApiResult.Success) {
-            prefs.saveAuthSession(result.data.token, result.data.user.id, result.data.user.phone, result.data.user.name)
-            prefs.saveSubscription(result.data.user.subscriptionStatus, result.data.user.subscriptionExpiresAt)
+            val user = result.data.user
+            prefs.saveAuthSession(result.data.token, user.id, user.phone, user.name)
+            // subscription_status may be null for brand-new users — default to "inactive"
+            prefs.saveSubscription(
+                user.subscriptionStatus ?: "inactive",
+                user.subscriptionExpiresAt
+            )
             prefs.clearTempSession()
         }
         return result
@@ -46,8 +47,12 @@ class AuthRepository @Inject constructor(
     suspend fun login(phone: String, password: String): ApiResult<AuthResponse> {
         val result = safeApiCall { api.login(LoginRequest(phone, password)) }
         if (result is ApiResult.Success) {
-            prefs.saveAuthSession(result.data.token, result.data.user.id, result.data.user.phone, result.data.user.name)
-            prefs.saveSubscription(result.data.user.subscriptionStatus, result.data.user.subscriptionExpiresAt)
+            val user = result.data.user
+            prefs.saveAuthSession(result.data.token, user.id, user.phone, user.name)
+            prefs.saveSubscription(
+                user.subscriptionStatus ?: "inactive",
+                user.subscriptionExpiresAt
+            )
         }
         return result
     }
@@ -85,7 +90,6 @@ class BlacklistRepository @Inject constructor(
 
             if (remoteVersion == localVersion) return SyncResult.UpToDate
 
-            // Pull full list
             val listResult = safeApiCall { api.getBlacklist() }
             if (listResult !is ApiResult.Success) return SyncResult.Error("Failed to download blacklist")
 
@@ -110,10 +114,6 @@ class BlacklistRepository @Inject constructor(
         }
     }
 
-    /**
-     * Core keyword matching — called by AccessibilityService.
-     * Checks extracted STK text against all cached platform keywords.
-     */
     suspend fun findMatchingPlatform(stkText: String): PlatformEntity? {
         val lower = stkText.lowercase()
         return platformDao.getAllForMatching().firstOrNull { platform ->
@@ -134,19 +134,42 @@ class SubscriptionRepository @Inject constructor(
     private val api: SafiStepApi,
     private val prefs: SafiStepPreferences
 ) {
+    val subscriptionStatus: Flow<String>   = prefs.subscriptionStatus
+    val subscriptionExpires: Flow<String?> = prefs.subscriptionExpires
+
     suspend fun getStatus(): ApiResult<SubscriptionStatusResponse> {
         val result = safeApiCall { api.getSubscriptionStatus() }
+        if (result is ApiResult.Success) {
+            prefs.saveSubscription(
+                result.data.subscriptionStatus ?: "inactive",
+                result.data.subscriptionExpiresAt
+            )
+        }
+        return result
+    }
+
+    /** Start a 3-day free trial (no payment needed) */
+    suspend fun startTrial(): ApiResult<StartTrialResponse> {
+        val result = safeApiCall { api.startTrial() }
         if (result is ApiResult.Success) {
             prefs.saveSubscription(result.data.subscriptionStatus, result.data.subscriptionExpiresAt)
         }
         return result
     }
 
-    suspend fun initiate(): ApiResult<InitiateSubscriptionResponse> =
-        safeApiCall { api.initiateSubscription() }
+    /** Initiate a paid subscription (monthly or yearly) via M-Pesa STK push */
+    suspend fun initiate(plan: String, phone: String): ApiResult<InitiateSubscriptionResponse> =
+        safeApiCall { api.initiateSubscription(InitiateSubscriptionRequest(plan = plan, phone = phone)) }
 
-    val subscriptionStatus: Flow<String> = prefs.subscriptionStatus
-    val subscriptionExpires: Flow<String?> = prefs.subscriptionExpires
+    /** Poll status after STK push — updates local prefs on success */
+    suspend fun pollStatus(): Boolean {
+        val result = safeApiCall { api.getSubscriptionStatus() }
+        if (result is ApiResult.Success && result.data.subscriptionStatus == "active") {
+            prefs.saveSubscription("active", result.data.subscriptionExpiresAt)
+            return true
+        }
+        return false
+    }
 }
 
 // ── Report Repository ─────────────────────────────────────────
@@ -156,8 +179,8 @@ class ReportRepository @Inject constructor(
     private val blockHistoryDao: BlockHistoryDao
 ) {
     val recentHistory: Flow<List<BlockHistoryEntity>> = blockHistoryDao.getRecentFlow(50)
-    val blockedCount: Flow<Int> = blockHistoryDao.getBlockedCountFlow()
-    val totalSaved: Flow<Double?> = blockHistoryDao.getTotalSavedFlow()
+    val blockedCount: Flow<Int>    = blockHistoryDao.getBlockedCountFlow()
+    val totalSaved: Flow<Double?>  = blockHistoryDao.getTotalSavedFlow()
 
     suspend fun recordBlock(
         platformId: Long?,
@@ -167,24 +190,22 @@ class ReportRepository @Inject constructor(
         rawStkText: String?,
         paybillDetected: String?,
         actionTaken: String = "blocked"
-    ): Long {
-        return blockHistoryDao.insert(
-            BlockHistoryEntity(
-                platformId       = platformId,
-                platformName     = platformName,
-                matchedKeyword   = matchedKeyword,
-                amountAttempted  = amountAttempted,
-                rawStkText       = rawStkText,
-                paybillDetected  = paybillDetected,
-                actionTaken      = actionTaken,
-                synced           = false
-            )
+    ): Long = blockHistoryDao.insert(
+        BlockHistoryEntity(
+            platformId      = platformId,
+            platformName    = platformName,
+            matchedKeyword  = matchedKeyword,
+            amountAttempted = amountAttempted,
+            rawStkText      = rawStkText,
+            paybillDetected = paybillDetected,
+            actionTaken     = actionTaken,
+            synced          = false
         )
-    }
+    )
 
     suspend fun syncPendingReports() {
         val unsynced = blockHistoryDao.getUnsynced()
-        val synced = mutableListOf<Long>()
+        val synced   = mutableListOf<Long>()
         unsynced.forEach { event ->
             val result = safeApiCall {
                 api.submitReport(

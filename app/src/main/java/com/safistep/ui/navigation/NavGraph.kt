@@ -12,18 +12,20 @@ import com.safistep.ui.screens.home.HomeScreen
 import com.safistep.ui.screens.history.HistoryScreen
 import com.safistep.ui.screens.onboarding.OnboardingScreen
 import com.safistep.ui.screens.settings.SettingsScreen
+import com.safistep.ui.screens.subscription.PlanSelectionScreen
 import com.safistep.ui.screens.subscription.SubscriptionScreen
 
 object Routes {
-    const val ONBOARDING    = "onboarding"
-    const val PHONE_ENTRY   = "phone_entry"
-    const val OTP_VERIFY    = "otp_verify/{phone}/{purpose}"
-    const val SET_PASSWORD  = "set_password"
-    const val LOGIN         = "login"
-    const val HOME          = "home"
-    const val HISTORY       = "history"
-    const val SUBSCRIPTION  = "subscription"
-    const val SETTINGS      = "settings"
+    const val ONBOARDING     = "onboarding"
+    const val PHONE_ENTRY    = "phone_entry"
+    const val OTP_VERIFY     = "otp_verify/{phone}/{purpose}"
+    const val SET_PASSWORD   = "set_password"
+    const val PLAN_SELECTION = "plan_selection"   // ← NEW: post-registration plan picker
+    const val LOGIN          = "login"
+    const val HOME           = "home"
+    const val HISTORY        = "history"
+    const val SUBSCRIPTION   = "subscription"
+    const val SETTINGS       = "settings"
 
     fun otpVerify(phone: String, purpose: String = "registration") =
         "otp_verify/$phone/$purpose"
@@ -38,28 +40,20 @@ fun SafiStepNavGraph(
         navController    = navController,
         startDestination = startDestination,
         enterTransition  = {
-            slideInHorizontally(
-                initialOffsetX = { it },
-                animationSpec  = tween(300)
-            ) + fadeIn(tween(300))
+            slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) +
+                    fadeIn(tween(300))
         },
         exitTransition   = {
-            slideOutHorizontally(
-                targetOffsetX = { -it / 3 },
-                animationSpec = tween(300)
-            ) + fadeOut(tween(150))
+            slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(300)) +
+                    fadeOut(tween(150))
         },
         popEnterTransition = {
-            slideInHorizontally(
-                initialOffsetX = { -it / 3 },
-                animationSpec  = tween(300)
-            ) + fadeIn(tween(300))
+            slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(300)) +
+                    fadeIn(tween(300))
         },
         popExitTransition = {
-            slideOutHorizontally(
-                targetOffsetX = { it },
-                animationSpec = tween(300)
-            ) + fadeOut(tween(150))
+            slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(300)) +
+                    fadeOut(tween(150))
         }
     ) {
         composable(Routes.ONBOARDING) {
@@ -99,6 +93,18 @@ fun SafiStepNavGraph(
         composable(Routes.SET_PASSWORD) {
             SetPasswordScreen(
                 onSuccess = {
+                    // After account creation → show plan picker
+                    navController.navigate(Routes.PLAN_SELECTION) {
+                        popUpTo(Routes.PHONE_ENTRY) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        // ── Plan selection (post-registration only) ───────────
+        composable(Routes.PLAN_SELECTION) {
+            PlanSelectionScreen(
+                onSuccess = {
                     navController.navigate(Routes.HOME) {
                         popUpTo(0) { inclusive = true }
                     }
@@ -108,13 +114,13 @@ fun SafiStepNavGraph(
 
         composable(Routes.LOGIN) {
             LoginScreen(
-                onSuccess    = {
+                onSuccess  = {
                     navController.navigate(Routes.HOME) {
                         popUpTo(0) { inclusive = true }
                     }
                 },
-                onRegister   = { navController.popBackStack() },
-                onForgot     = { navController.navigate(Routes.PHONE_ENTRY) }
+                onRegister = { navController.popBackStack() },
+                onForgot   = { navController.navigate(Routes.PHONE_ENTRY) }
             )
         }
 
@@ -139,7 +145,7 @@ fun SafiStepNavGraph(
 
         composable(Routes.SETTINGS) {
             SettingsScreen(
-                onBack = { navController.popBackStack() },
+                onBack   = { navController.popBackStack() },
                 onLogout = {
                     navController.navigate(Routes.PHONE_ENTRY) {
                         popUpTo(0) { inclusive = true }

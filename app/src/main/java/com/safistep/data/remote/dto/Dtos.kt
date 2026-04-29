@@ -49,7 +49,8 @@ data class UserDto(
     val id: Long,
     val phone: String,
     val name: String?,
-    @Json(name = "subscription_status") val subscriptionStatus: String,
+    // Nullable — new users have no subscription yet
+    @Json(name = "subscription_status") val subscriptionStatus: String?,
     @Json(name = "subscription_expires_at") val subscriptionExpiresAt: String?,
     @Json(name = "is_verified") val isVerified: Boolean = false
 )
@@ -86,14 +87,28 @@ data class PlatformDto(
 @JsonClass(generateAdapter = true)
 data class SubscriptionStatusResponse(
     @Json(name = "is_subscribed") val isSubscribed: Boolean,
-    @Json(name = "subscription_status") val subscriptionStatus: String,
+    @Json(name = "subscription_status") val subscriptionStatus: String?,
     @Json(name = "subscription_expires_at") val subscriptionExpiresAt: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class InitiateSubscriptionRequest(
+    val plan: String,           // "trial" | "monthly" | "yearly"
+    val phone: String?          // payment phone (null for trial)
 )
 
 @JsonClass(generateAdapter = true)
 data class InitiateSubscriptionResponse(
     val message: String,
-    @Json(name = "checkout_request_id") val checkoutRequestId: String
+    @Json(name = "checkout_request_id") val checkoutRequestId: String?,
+    val plan: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class StartTrialResponse(
+    val message: String,
+    @Json(name = "subscription_status") val subscriptionStatus: String,
+    @Json(name = "subscription_expires_at") val subscriptionExpiresAt: String?
 )
 
 // ── Report DTOs ──────────────────────────────────────────────

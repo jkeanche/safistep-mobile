@@ -36,8 +36,11 @@ interface SafiStepApi {
     @GET("api/v1/subscriptions/status")
     suspend fun getSubscriptionStatus(): Response<SubscriptionStatusResponse>
 
+    @POST("api/v1/subscriptions/trial")
+    suspend fun startTrial(): Response<StartTrialResponse>
+
     @POST("api/v1/subscriptions/initiate")
-    suspend fun initiateSubscription(): Response<InitiateSubscriptionResponse>
+    suspend fun initiateSubscription(@Body body: InitiateSubscriptionRequest): Response<InitiateSubscriptionResponse>
 
     // ── Reports ──────────────────────────────────────────────
 
