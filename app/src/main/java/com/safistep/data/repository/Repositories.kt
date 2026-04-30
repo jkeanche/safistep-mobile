@@ -12,6 +12,7 @@ import com.safistep.data.remote.dto.*
 import com.safistep.utils.ApiResult
 import com.safistep.utils.safeApiCall
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -34,7 +35,6 @@ class AuthRepository @Inject constructor(
         if (result is ApiResult.Success) {
             val user = result.data.user
             prefs.saveAuthSession(result.data.token, user.id, user.phone, user.name)
-            // subscription_status may be null for brand-new users — default to "inactive"
             prefs.saveSubscription(
                 user.subscriptionStatus ?: "inactive",
                 user.subscriptionExpiresAt
@@ -120,6 +120,59 @@ class BlacklistRepository @Inject constructor(
             platform.keywordList().any { keyword -> lower.contains(keyword) }
         }
     }
+
+    suspend fun getLocalBlacklist(): ApiResult<BlacklistResponse> {
+        return try {
+            val entities = platformDao.getAll()
+            val platforms = entities.map { entity ->
+                PlatformDto(
+                    id = entity.id,
+                    name = entity.name,
+                    category = entity.category,
+                    keywords = entity.keywordList(),
+                    versionHash = entity.versionHash,
+                    updatedAt = entity.updatedAt
+                )
+            }
+            val globalVersion = syncMetaDao.get(SyncMetaEntity.KEY_BLACKLIST_VERSION) ?: "unknown"
+            ApiResult.Success(BlacklistResponse(globalVersion, platforms))
+        } catch (e: Exception) {
+            ApiResult.Error(e.message ?: "Failed to load local blacklist")
+        }
+    }
+
+    suspend fun syncBlacklist(): ApiResult<BlacklistResponse> {
+        return try {
+            val versionResult = safeApiCall { api.getBlacklistVersion() }
+            if (versionResult !is ApiResult.Success) {
+                return ApiResult.Error("Failed to check version")
+            }
+
+            val listResult = safeApiCall { api.getBlacklist() }
+            if (listResult !is ApiResult.Success) {
+                return ApiResult.Error("Failed to download blacklist")
+            }
+
+            val entities = listResult.data.platforms.map { dto ->
+                PlatformEntity(
+                    id          = dto.id,
+                    name        = dto.name,
+                    category    = dto.category,
+                    keywords    = dto.keywords.joinToString(","),
+                    versionHash = dto.versionHash,
+                    updatedAt   = dto.updatedAt
+                )
+            }
+            platformDao.replaceAll(entities)
+            syncMetaDao.set(SyncMetaEntity.KEY_BLACKLIST_VERSION, listResult.data.globalVersion)
+            syncMetaDao.set(SyncMetaEntity.KEY_LAST_SYNC, System.currentTimeMillis().toString())
+            prefs.setLastSync(System.currentTimeMillis())
+
+            ApiResult.Success(listResult.data)
+        } catch (e: Exception) {
+            ApiResult.Error(e.message ?: "Sync failed")
+        }
+    }
 }
 
 sealed class SyncResult {
@@ -148,20 +201,35 @@ class SubscriptionRepository @Inject constructor(
         return result
     }
 
-    /** Start a 3-day free trial (no payment needed) */
+    /**
+     * Activate the 3-day free trial — no payment needed.
+     * Calls POST /api/v1/subscriptions/trial
+     */
     suspend fun startTrial(): ApiResult<StartTrialResponse> {
         val result = safeApiCall { api.startTrial() }
         if (result is ApiResult.Success) {
-            prefs.saveSubscription(result.data.subscriptionStatus, result.data.subscriptionExpiresAt)
+            prefs.saveSubscription(
+                result.data.subscriptionStatus,
+                result.data.subscriptionExpiresAt
+            )
         }
         return result
     }
 
-    /** Initiate a paid subscription (monthly or yearly) via M-Pesa STK push */
+    /**
+     * Initiate a paid subscription (monthly or yearly) via M-Pesa STK push.
+     * @param plan  "monthly" or "yearly"
+     * @param phone Normalized Safaricom number (254XXXXXXXXX)
+     */
     suspend fun initiate(plan: String, phone: String): ApiResult<InitiateSubscriptionResponse> =
-        safeApiCall { api.initiateSubscription(InitiateSubscriptionRequest(plan = plan, phone = phone)) }
+        safeApiCall {
+            api.initiateSubscription(InitiateSubscriptionRequest(plan = plan, phone = phone))
+        }
 
-    /** Poll status after STK push — updates local prefs on success */
+    /**
+     * Poll subscription status after STK push — updates local prefs on success.
+     * Returns true when the subscription becomes active.
+     */
     suspend fun pollStatus(): Boolean {
         val result = safeApiCall { api.getSubscriptionStatus() }
         if (result is ApiResult.Success && result.data.subscriptionStatus == "active") {
@@ -179,8 +247,8 @@ class ReportRepository @Inject constructor(
     private val blockHistoryDao: BlockHistoryDao
 ) {
     val recentHistory: Flow<List<BlockHistoryEntity>> = blockHistoryDao.getRecentFlow(50)
-    val blockedCount: Flow<Int>    = blockHistoryDao.getBlockedCountFlow()
-    val totalSaved: Flow<Double?>  = blockHistoryDao.getTotalSavedFlow()
+    val blockedCount: Flow<Int>   = blockHistoryDao.getBlockedCountFlow()
+    val totalSaved: Flow<Double?> = blockHistoryDao.getTotalSavedFlow()
 
     suspend fun recordBlock(
         platformId: Long?,

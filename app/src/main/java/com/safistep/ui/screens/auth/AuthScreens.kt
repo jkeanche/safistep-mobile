@@ -477,7 +477,7 @@ fun SetPasswordScreen(
                 value         = viewModel.name,
                 onValueChange = viewModel::onNameChange,
                 label         = "Full Name (optional)",
-                placeholder   = "John Doe",
+                placeholder   = "Your Name",
                 error         = viewModel.nameError
             )
             Spacer(Modifier.height(16.dp))

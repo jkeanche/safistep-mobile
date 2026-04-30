@@ -8,6 +8,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.safistep.ui.screens.auth.*
+import com.safistep.ui.screens.blacklist.BlacklistScreen
 import com.safistep.ui.screens.home.HomeScreen
 import com.safistep.ui.screens.history.HistoryScreen
 import com.safistep.ui.screens.onboarding.OnboardingScreen
@@ -26,6 +27,7 @@ object Routes {
     const val HISTORY        = "history"
     const val SUBSCRIPTION   = "subscription"
     const val SETTINGS       = "settings"
+    const val BLACKLIST      = "blacklist"
 
     fun otpVerify(phone: String, purpose: String = "registration") =
         "otp_verify/$phone/$purpose"
@@ -145,12 +147,19 @@ fun SafiStepNavGraph(
 
         composable(Routes.SETTINGS) {
             SettingsScreen(
-                onBack   = { navController.popBackStack() },
-                onLogout = {
+                onBack     = { navController.popBackStack() },
+                onLogout   = {
                     navController.navigate(Routes.PHONE_ENTRY) {
                         popUpTo(0) { inclusive = true }
                     }
-                }
+                },
+                onBlacklist = { navController.navigate(Routes.BLACKLIST) }
+            )
+        }
+
+        composable(Routes.BLACKLIST) {
+            BlacklistScreen(
+                onBack = { navController.popBackStack() }
             )
         }
     }

@@ -65,6 +65,7 @@ class SettingsViewModel @Inject constructor(
 fun SettingsScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
+    onBlacklist: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context           = LocalContext.current
@@ -148,6 +149,13 @@ fun SettingsScreen(
                     subtitle = if (protectionEnabled) "Monitoring all STK prompts" else "Paused",
                     checked  = protectionEnabled,
                     onToggle = viewModel::toggleProtection
+                )
+                SafiDivider(Modifier.padding(horizontal = 16.dp))
+                SettingsActionItem(
+                    icon     = Icons.Outlined.Block,
+                    title    = "Blacklisted Platforms",
+                    subtitle = "View and sync blocked platforms",
+                    onClick  = onBlacklist
                 )
                 SafiDivider(Modifier.padding(horizontal = 16.dp))
                 SettingsActionItem(

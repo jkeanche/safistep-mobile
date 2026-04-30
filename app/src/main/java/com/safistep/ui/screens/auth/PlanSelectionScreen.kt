@@ -11,6 +11,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -150,7 +151,7 @@ class PlanSelectionViewModel @Inject constructor(
     private fun startPolling() {
         pollingJob?.cancel()
         pollingJob = viewModelScope.launch {
-            repeat(24) { // 24 × 5s = 2 min
+            repeat(24) {
                 delay(5_000)
                 if (subscriptionRepo.pollStatus()) {
                     _uiState.value = PlanUiState.Success
@@ -198,7 +199,6 @@ fun PlanSelectionScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    // Navigate on success after brief delay
     LaunchedEffect(uiState) {
         if (uiState is PlanUiState.Success) {
             delay(1800)
@@ -226,7 +226,7 @@ fun PlanSelectionScreen(
 
 @Composable
 private fun PlanPickerContent(viewModel: PlanSelectionViewModel) {
-    val isLoading = viewModel.uiState.collectAsState().value is PlanUiState.Loading
+    val isLoading  = viewModel.uiState.collectAsState().value is PlanUiState.Loading
     val needsPhone = viewModel.selectedPlan != SubscriptionPlan.TRIAL
 
     Column(
@@ -238,7 +238,6 @@ private fun PlanPickerContent(viewModel: PlanSelectionViewModel) {
     ) {
         Spacer(Modifier.height(40.dp))
 
-        // Header
         Box(
             modifier = Modifier
                 .size(64.dp)
@@ -262,7 +261,6 @@ private fun PlanPickerContent(viewModel: PlanSelectionViewModel) {
 
         Spacer(Modifier.height(28.dp))
 
-        // Plan cards
         SubscriptionPlan.values().forEach { plan ->
             PlanCard(
                 plan       = plan,
@@ -272,7 +270,6 @@ private fun PlanPickerContent(viewModel: PlanSelectionViewModel) {
             Spacer(Modifier.height(12.dp))
         }
 
-        // Phone field — only for paid plans
         AnimatedVisibility(
             visible = needsPhone,
             enter   = fadeIn() + expandVertically(),
@@ -329,7 +326,7 @@ private fun PlanPickerContent(viewModel: PlanSelectionViewModel) {
         Spacer(Modifier.height(20.dp))
 
         SafiButton(
-            text     = when (viewModel.selectedPlan) {
+            text = when (viewModel.selectedPlan) {
                 SubscriptionPlan.TRIAL   -> "Start Free Trial"
                 SubscriptionPlan.MONTHLY -> "Pay KES 200 via M-Pesa"
                 SubscriptionPlan.YEARLY  -> "Pay KES 1,920 via M-Pesa"
@@ -345,7 +342,6 @@ private fun PlanPickerContent(viewModel: PlanSelectionViewModel) {
 
         Spacer(Modifier.height(16.dp))
 
-        // Feature bullets
         FeatureBullets()
 
         Spacer(Modifier.height(32.dp))
@@ -382,7 +378,6 @@ private fun PlanCard(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Icon
         Box(
             modifier = Modifier
                 .size(44.dp)
@@ -402,7 +397,6 @@ private fun PlanCard(
 
         Spacer(Modifier.width(14.dp))
 
-        // Labels
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -439,7 +433,6 @@ private fun PlanCard(
 
         Spacer(Modifier.width(12.dp))
 
-        // Price
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 plan.price,
@@ -452,7 +445,6 @@ private fun PlanCard(
 
         Spacer(Modifier.width(8.dp))
 
-        // Radio
         Box(
             modifier = Modifier
                 .size(22.dp)
@@ -520,13 +512,16 @@ private fun FeatureBullets() {
 @Composable
 private fun AwaitingPaymentView(plan: SubscriptionPlan, onReset: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val scale by infiniteTransition.animateFloat(
-        initialValue  = 0.9f, targetValue = 1.1f,
+    // Renamed to `pulseScale` to avoid ambiguity with Modifier.scale
+    val pulseScale by infiniteTransition.animateFloat(
+        initialValue  = 0.9f,
+        targetValue   = 1.1f,
         animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
-        label         = "scale"
+        label         = "pulseScale"
     )
+
     Box(
-        modifier        = Modifier.fillMaxSize().systemBarsPadding(),
+        modifier         = Modifier.fillMaxSize().systemBarsPadding(),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -536,7 +531,7 @@ private fun AwaitingPaymentView(plan: SubscriptionPlan, onReset: () -> Unit) {
             Box(
                 modifier = Modifier
                     .size(100.dp)
-                    .scale(scale)
+                    .scale(pulseScale)          // unambiguous: Modifier.scale(Float)
                     .background(SafiColors.Primary.copy(0.12f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
@@ -560,9 +555,9 @@ private fun AwaitingPaymentView(plan: SubscriptionPlan, onReset: () -> Unit) {
             )
             Spacer(Modifier.height(24.dp))
             CircularProgressIndicator(
-                color        = SafiColors.Primary,
-                strokeWidth  = 3.dp,
-                modifier     = Modifier.size(32.dp)
+                color       = SafiColors.Primary,
+                strokeWidth = 3.dp,
+                modifier    = Modifier.size(32.dp)
             )
             Spacer(Modifier.height(12.dp))
             Text(
@@ -588,7 +583,10 @@ private fun PlanSuccessView(plan: SubscriptionPlan) {
         modifier         = Modifier.fillMaxSize().systemBarsPadding(),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier            = Modifier.padding(32.dp)
+        ) {
             Icon(
                 Icons.Filled.CheckCircle,
                 null,

@@ -26,6 +26,12 @@ import androidx.compose.ui.unit.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.safistep.ui.components.*
 import com.safistep.ui.theme.SafiColors
+import com.safistep.utils.isAccessibilityServiceEnabled
+import com.safistep.utils.isOverlayPermissionGranted
+import com.safistep.utils.openAccessibilitySettings
+import com.safistep.utils.openOverlaySettings
+import com.safistep.utils.getOverlayInstructions
+import com.safistep.utils.needsSpecialOverlayHandling
 import kotlinx.coroutines.launch
 
 // ── Data model ────────────────────────────────────────────────
@@ -269,24 +275,139 @@ private fun InfoPageContent(page: OnboardingPageData.InfoPage) {
 @Composable
 private fun PermissionsPageContent(onFinish: () -> Unit) {
     val context = LocalContext.current
-    val accessibilityGranted = remember(Unit) {
-        mutableStateOf(isAccessibilityEnabled(context))
-    }
-    val overlayGranted = remember(Unit) {
-        mutableStateOf(Settings.canDrawOverlays(context))
-    }
+    var accessibilityGranted by remember { mutableStateOf(isAccessibilityServiceEnabled(context)) }
+    var overlayGranted       by remember { mutableStateOf(isOverlayPermissionGranted(context)) }
+
+    // Dialog state
+    var showAccessibilityGuide by remember { mutableStateOf(false) }
+    var showOverlayGuide       by remember { mutableStateOf(false) }
 
     // Re-check permissions when user returns from settings
     LaunchedEffect(Unit) {
         // Poll until both granted or user proceeds
         while (true) {
             kotlinx.coroutines.delay(500)
-            accessibilityGranted.value = isAccessibilityEnabled(context)
-            overlayGranted.value = Settings.canDrawOverlays(context)
+            accessibilityGranted = isAccessibilityServiceEnabled(context)
+            overlayGranted       = isOverlayPermissionGranted(context)
         }
     }
 
-    val bothGranted = accessibilityGranted.value && overlayGranted.value
+    val bothGranted = accessibilityGranted && overlayGranted
+
+    // ── Accessibility guide dialog ─────────────────────────────
+    if (showAccessibilityGuide) {
+        AlertDialog(
+            onDismissRequest = { showAccessibilityGuide = false },
+            containerColor   = SafiColors.Card,
+            icon = {
+                Icon(
+                    Icons.Outlined.AccessibilityNew,
+                    contentDescription = null,
+                    tint     = SafiColors.Primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    "Enable Accessibility",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "On the next screen, follow these steps:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    StepRow(number = "1", text = "Look for \"SafiStep\" or \"SafiStep Payment Guardian\" in the list")
+                    StepRow(number = "2", text = "Tap it, then tap \"Use SafiStep\"")
+                    StepRow(number = "3", text = "Tap \"Allow\" on the confirmation dialog")
+                    Text(
+                        "If you see \"Restricted setting\" tap the ⋮ menu (top-right) → Allow restricted settings.",
+                        style = MaterialTheme.typography.bodySmall.copy(color = SafiColors.Warning)
+                    )
+                }
+            },
+            confirmButton = {
+                SafiButton(
+                    text     = "Open Settings",
+                    onClick  = {
+                        showAccessibilityGuide = false
+                        openAccessibilitySettings(context)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showAccessibilityGuide = false }) {
+                    Text("Cancel", color = SafiColors.OnSurfaceVar)
+                }
+            }
+        )
+    }
+
+    // ── Overlay guide dialog ───────────────────────────────────
+    if (showOverlayGuide) {
+        AlertDialog(
+            onDismissRequest = { showOverlayGuide = false },
+            containerColor   = SafiColors.Card,
+            icon = {
+                Icon(
+                    Icons.Outlined.PictureInPicture,
+                    contentDescription = null,
+                    tint     = SafiColors.Primary,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    "Allow Display Over Apps",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "On the next screen, follow these steps:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    StepRow(number = "1", text = "Find \"SafiStep\" in the list")
+                    StepRow(number = "2", text = "Toggle \"Allow display over other apps\" ON")
+                    
+                    if (needsSpecialOverlayHandling()) {
+                        Text(
+                            "Special instructions for your device:",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                        Text(
+                            getOverlayInstructions(),
+                            style = MaterialTheme.typography.bodySmall.copy(color = SafiColors.Warning)
+                        )
+                    } else {
+                        Text(
+                            "If the toggle is greyed out, tap the ⋮ menu → Allow restricted settings first.",
+                            style = MaterialTheme.typography.bodySmall.copy(color = SafiColors.Warning)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                SafiButton(
+                    text     = "Open Settings",
+                    onClick  = {
+                        showOverlayGuide = false
+                        openOverlaySettings(context)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showOverlayGuide = false }) {
+                    Text("Cancel", color = SafiColors.OnSurfaceVar)
+                }
+            }
+        )
+    }
 
     Column(
         modifier            = Modifier.fillMaxWidth(),
@@ -336,13 +457,9 @@ private fun PermissionsPageContent(onFinish: () -> Unit) {
             icon        = Icons.Outlined.AccessibilityNew,
             title       = "Accessibility Service",
             description = "Detects betting STK prompts",
-            granted     = accessibilityGranted.value,
+            granted     = accessibilityGranted,
             onGrant     = {
-                context.startActivity(
-                    Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                )
+                showAccessibilityGuide = true
             }
         )
 
@@ -353,14 +470,9 @@ private fun PermissionsPageContent(onFinish: () -> Unit) {
             icon        = Icons.Outlined.PictureInPicture,
             title       = "Display Over Apps",
             description = "Shows the intervention timer",
-            granted     = overlayGranted.value,
+            granted     = overlayGranted,
             onGrant     = {
-                context.startActivity(
-                    Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:${context.packageName}")
-                    ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                )
+                showOverlayGuide = true
             }
         )
 
@@ -489,15 +601,29 @@ private fun PermissionRow(
     }
 }
 
-// ── Helper ────────────────────────────────────────────────────
+// ── Step row helper ───────────────────────────────────────────
 
-private fun isAccessibilityEnabled(context: android.content.Context): Boolean {
-    val service = "${context.packageName}/com.safistep.service.SafiStepAccessibilityService"
-    return try {
-        val enabled = android.provider.Settings.Secure.getString(
-            context.contentResolver,
-            android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-        enabled.split(":").any { it.equals(service, ignoreCase = true) }
-    } catch (_: Exception) { false }
+@Composable
+private fun StepRow(number: String, text: String) {
+    Row(verticalAlignment = Alignment.Top) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .background(SafiColors.Primary.copy(0.15f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                number,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    color      = SafiColors.Primary,
+                    fontWeight = FontWeight.Bold
+                )
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall.copy(color = SafiColors.OnSurface)
+        )
+    }
 }

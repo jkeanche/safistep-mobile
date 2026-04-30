@@ -32,7 +32,7 @@ class SafiStepApp : Application(), Configuration.Provider {
             nm.createNotificationChannel(
                 NotificationChannel(
                     CHANNEL_SERVICE,
-                    "SafiStep Guardian",
+                    "SafiStep Guard",
                     NotificationManager.IMPORTANCE_MIN
                 ).apply {
                     description = "Shows SafiStep is actively protecting your payments"

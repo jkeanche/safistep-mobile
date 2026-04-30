@@ -401,7 +401,7 @@ fun ShieldStatusCard(
                 text  = when {
                     !isSubscribed -> "Protection Inactive"
                     isActive      -> "Protection Active"
-                    else          -> "Guardian Paused"
+                    else          -> "SafiStep Guard Paused"
                 },
                 style = MaterialTheme.typography.headlineSmall.copy(
                     color      = if (isActive && isSubscribed) SafiColors.Primary else SafiColors.OnSurfaceVar,

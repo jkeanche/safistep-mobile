@@ -1,4 +1,4 @@
-package com.example.safistep
+package com.safistep
 
 import org.junit.Test
 

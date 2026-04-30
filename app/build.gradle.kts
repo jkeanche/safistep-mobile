@@ -13,7 +13,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.safistep"
+        applicationId = "com.safistep"
         minSdk = 24
         //noinspection OldTargetApi
         targetSdk = 36

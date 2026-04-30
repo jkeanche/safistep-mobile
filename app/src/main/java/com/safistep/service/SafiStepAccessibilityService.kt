@@ -3,8 +3,10 @@ package com.safistep.service
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
+import android.os.Build
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.annotation.RequiresApi
 import com.safistep.data.local.SafiStepPreferences
 import com.safistep.data.repository.BlacklistRepository
 import com.safistep.data.repository.ReportRepository
@@ -109,6 +111,7 @@ class SafiStepAccessibilityService : AccessibilityService() {
         return sb.toString()
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun showBlockingOverlay(
         platformName: String,
         platformId: Long,
